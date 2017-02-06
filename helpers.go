@@ -1,6 +1,7 @@
 package tgbotapi
 
 import (
+	"log"
 	"net/url"
 )
 
@@ -20,6 +21,7 @@ func NewMessage(chatID int64, text string) MessageConfig {
 
 // NewMessageToChannel creates a new Message that is sent to a channel
 // by username.
+//
 // username is the username of the channel, text is the message text.
 func NewMessageToChannel(username string, text string) MessageConfig {
 	return MessageConfig{
@@ -328,6 +330,32 @@ func NewInlineQueryResultArticle(id, title, messageText string) InlineQueryResul
 	}
 }
 
+// NewInlineQueryResultArticleMarkdown creates a new inline query article with Markdown parsing.
+func NewInlineQueryResultArticleMarkdown(id, title, messageText string) InlineQueryResultArticle {
+	return InlineQueryResultArticle{
+		Type:  "article",
+		ID:    id,
+		Title: title,
+		InputMessageContent: InputTextMessageContent{
+			Text:      messageText,
+			ParseMode: "Markdown",
+		},
+	}
+}
+
+// NewInlineQueryResultArticleHTML creates a new inline query article with HTML parsing.
+func NewInlineQueryResultArticleHTML(id, title, messageText string) InlineQueryResultArticle {
+	return InlineQueryResultArticle{
+		Type:  "article",
+		ID:    id,
+		Title: title,
+		InputMessageContent: InputTextMessageContent{
+			Text:      messageText,
+			ParseMode: "HTML",
+		},
+	}
+}
+
 // NewInlineQueryResultGIF creates a new inline query GIF.
 func NewInlineQueryResultGIF(id, url string) InlineQueryResultGIF {
 	return InlineQueryResultGIF{
@@ -352,6 +380,16 @@ func NewInlineQueryResultPhoto(id, url string) InlineQueryResultPhoto {
 		Type: "photo",
 		ID:   id,
 		URL:  url,
+	}
+}
+
+// NewInlineQueryResultPhotoWithThumb creates a new inline query photo.
+func NewInlineQueryResultPhotoWithThumb(id, url, thumb string) InlineQueryResultPhoto {
+	return InlineQueryResultPhoto{
+		Type:     "photo",
+		ID:       id,
+		URL:      url,
+		ThumbURL: thumb,
 	}
 }
 
@@ -443,9 +481,20 @@ func NewEditMessageReplyMarkup(chatID int64, messageID int, replyMarkup InlineKe
 // NewHideKeyboard hides the keyboard, with the option for being selective
 // or hiding for everyone.
 func NewHideKeyboard(selective bool) ReplyKeyboardHide {
+	log.Println("NewHideKeyboard is deprecated, please use NewRemoveKeyboard")
+
 	return ReplyKeyboardHide{
 		HideKeyboard: true,
 		Selective:    selective,
+	}
+}
+
+// NewRemoveKeyboard hides the keyboard, with the option for being selective
+// or hiding for everyone.
+func NewRemoveKeyboard(selective bool) ReplyKeyboardRemove {
+	return ReplyKeyboardRemove{
+		RemoveKeyboard: true,
+		Selective:      selective,
 	}
 }
 
