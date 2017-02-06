@@ -16,6 +16,30 @@ func TestNewInlineQueryResultArticle(t *testing.T) {
 	}
 }
 
+func TestNewInlineQueryResultArticleMarkdown(t *testing.T) {
+	result := tgbotapi.NewInlineQueryResultArticleMarkdown("id", "title", "*message*")
+
+	if result.Type != "article" ||
+		result.ID != "id" ||
+		result.Title != "title" ||
+		result.InputMessageContent.(tgbotapi.InputTextMessageContent).Text != "*message*" ||
+		result.InputMessageContent.(tgbotapi.InputTextMessageContent).ParseMode != "Markdown" {
+		t.Fail()
+	}
+}
+
+func TestNewInlineQueryResultArticleHTML(t *testing.T) {
+	result := tgbotapi.NewInlineQueryResultArticleHTML("id", "title", "<b>message</b>")
+
+	if result.Type != "article" ||
+		result.ID != "id" ||
+		result.Title != "title" ||
+		result.InputMessageContent.(tgbotapi.InputTextMessageContent).Text != "<b>message</b>" ||
+		result.InputMessageContent.(tgbotapi.InputTextMessageContent).ParseMode != "HTML" {
+		t.Fail()
+	}
+}
+
 func TestNewInlineQueryResultGIF(t *testing.T) {
 	result := tgbotapi.NewInlineQueryResultGIF("id", "google.com")
 
@@ -42,6 +66,17 @@ func TestNewInlineQueryResultPhoto(t *testing.T) {
 	if result.Type != "photo" ||
 		result.ID != "id" ||
 		result.URL != "google.com" {
+		t.Fail()
+	}
+}
+
+func TestNewInlineQueryResultPhotoWithThumb(t *testing.T) {
+	result := tgbotapi.NewInlineQueryResultPhotoWithThumb("id", "google.com", "thumb.com")
+
+	if result.Type != "photo" ||
+		result.ID != "id" ||
+		result.URL != "google.com" ||
+		result.ThumbURL != "thumb.com" {
 		t.Fail()
 	}
 }

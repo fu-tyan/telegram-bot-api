@@ -12,28 +12,48 @@ import (
 // APIResponse is a response from the Telegram API with the result
 // stored raw.
 type APIResponse struct {
-	Ok          bool            `json:"ok"`
-	Result      json.RawMessage `json:"result"`
-	ErrorCode   int             `json:"error_code"`
-	Description string          `json:"description"`
+	Ok          bool                `json:"ok"`
+	Result      json.RawMessage     `json:"result"`
+	ErrorCode   int                 `json:"error_code"`
+	Description string              `json:"description"`
+	Parameters  *ResponseParameters `json:"parameters"`
+}
+
+// ResponseParameters are various errors that can be returned in APIResponse.
+type ResponseParameters struct {
+	MigrateToChatID int64 `json:"migrate_to_chat_id"` // optional
+	RetryAfter      int   `json:"retry_after"`        // optional
 }
 
 // This object represents an incoming update.
 // Only one of the optional parameters can be present in any given update.
 type Update struct {
-	UpdateID           int                 `json:"update_id"`            // The update‘s unique identifier.
-									     // 	Update identifiers start from a certain positive number
-									     // 	and increase sequentially.
-									     // 	This ID becomes especially handy if you’re using Webhooks,
-									     // 	since it allows you to ignore repeated updates or to restore
-									     // 	the correct update sequence, should they get out of order.
-	Message            *Message            `json:"message"`              // Optional. New incoming message of any kind — text, photo, sticker, etc.
+	UpdateID int `json:"update_id"` // The update‘s unique identifier.
+	// 	Update identifiers start from a certain positive number
+	// 	and increase sequentially.
+	// 	This ID becomes especially handy if you’re using Webhooks,
+	// 	since it allows you to ignore repeated updates or to restore
+	// 	the correct update sequence, should they get out of order.
+	Message            *Message            `json:"message"` // Optional. New incoming message of any kind — text, photo, sticker, etc.
+	EditedMessage      *Message            `json:"edited_message"`
+	ChannelPost        *Message            `json:"channel_post"`
+	EditedChannelPost  *Message            `json:"edited_channel_post"`
 	InlineQuery        *InlineQuery        `json:"inline_query"`         // Optional. New incoming inline query
 	ChosenInlineResult *ChosenInlineResult `json:"chosen_inline_result"` // Optional. The result of an inline query that was chosen by a user and sent to their chat partner.
 	CallbackQuery      *CallbackQuery      `json:"callback_query"`       // Optional. New incoming callback query
 }
 
-// This object represents a Telegram user or bot.
+// UpdatesChannel is the channel for getting updates.
+type UpdatesChannel <-chan Update
+
+// Clear discards all unprocessed incoming updates.
+func (ch UpdatesChannel) Clear() {
+	for len(ch) != 0 {
+		<-ch
+	}
+}
+
+// User is a user on Telegram.
 type User struct {
 	ID        int    `json:"id"`         // Unique identifier for this user or bot
 	FirstName string `json:"first_name"` // User‘s or bot’s first name
@@ -66,50 +86,61 @@ type GroupChat struct {
 
 // This object represents a chat.
 type Chat struct {
-	ID        int64  `json:"id"`         // Unique identifier for this chat, not exceeding 1e13 by absolute value
-	Type      string `json:"type"`       // Type of chat, can be either “private”, “group”, “supergroup” or “channel”
-	Title     string `json:"title"`      // Optional. Title, for channels and group chats
-	UserName  string `json:"username"`   // Optional. Username, for private chats and channels if available
-	FirstName string `json:"first_name"` // Optional. First name of the other party in a private chat
-	LastName  string `json:"last_name"`  // Optional. Last name of the other party in a private chat
+	ID                  int64  `json:"id"`                             // Unique identifier for this chat, not exceeding 1e13 by absolute value
+	Type                string `json:"type"`                           // Type of chat, can be either “private”, “group”, “supergroup” or “channel”
+	Title               string `json:"title"`                          // Optional. Title, for channels and group chats
+	UserName            string `json:"username"`                       // Optional. Username, for private chats and channels if available
+	FirstName           string `json:"first_name"`                     // Optional. First name of the other party in a private chat
+	LastName            string `json:"last_name"`                      // Optional. Last name of the other party in a private chat
+	AllMembersAreAdmins bool   `json:"all_members_are_administrators"` // optional
 }
 
 // IsPrivate returns if the Chat is a private conversation.
-func (c *Chat) IsPrivate() bool {
+func (c Chat) IsPrivate() bool {
 	return c.Type == "private"
 }
 
 // IsGroup returns if the Chat is a group.
-func (c *Chat) IsGroup() bool {
+func (c Chat) IsGroup() bool {
 	return c.Type == "group"
 }
 
 // IsSuperGroup returns if the Chat is a supergroup.
-func (c *Chat) IsSuperGroup() bool {
+func (c Chat) IsSuperGroup() bool {
 	return c.Type == "supergroup"
 }
 
 // IsChannel returns if the Chat is a channel.
-func (c *Chat) IsChannel() bool {
+func (c Chat) IsChannel() bool {
 	return c.Type == "channel"
 }
 
-// This object represents a message.
+// ChatConfig returns a ChatConfig struct for chat related methods.
+func (c Chat) ChatConfig() ChatConfig {
+	return ChatConfig{ChatID: c.ID}
+}
+
+// Message is returned by almost every request, and contains data about
+// almost anything.
 type Message struct {
-	MessageID             int              `json:"message_id"`              // Unique message identifier
-	From                  *User            `json:"from"`                    // Optional. Sender, can be empty for messages sent to channels
-	Date                  int              `json:"date"`                    // Date the message was sent in Unix time
-	Chat                  *Chat            `json:"chat"`                    // Conversation the message belongs to
-	ForwardFrom           *User            `json:"forward_from"`            // Optional. For forwarded messages, sender of the original message
-	ForwardDate           int              `json:"forward_date"`            // Optional. For forwarded messages, date the original message was sent in Unix time
-	ReplyToMessage        *Message         `json:"reply_to_message"`        // Optional. For replies, the original message.
-										// 	Note that the Message object in this field
-										// 	will not contain further reply_to_message fields
-										// 	even if it itself is a reply.
+	MessageID            int      `json:"message_id"`              // Unique message identifier
+	From                 *User    `json:"from"`                    // Optional. Sender, can be empty for messages sent to channels
+	Date                 int      `json:"date"`                    // Date the message was sent in Unix time
+	Chat                 *Chat    `json:"chat"`                    // Conversation the message belongs to
+	ForwardFrom          *User    `json:"forward_from"`            // Optional. For forwarded messages, sender of the original message
+	ForwardFromChat      *Chat    `json:"forward_from_chat"`       // optional
+	ForwardFromMessageID int      `json:"forward_from_message_id"` // optional
+	ForwardDate          int      `json:"forward_date"`            // Optional. For forwarded messages, date the original message was sent in Unix time
+	ReplyToMessage       *Message `json:"reply_to_message"`        // Optional. For replies, the original message.
+	// 	Note that the Message object in this field
+	// 	will not contain further reply_to_message fields
+	// 	even if it itself is a reply.
+	EditDate              int              `json:"edit_date"`               // optional
 	Text                  string           `json:"text"`                    // Optional. For text messages, the actual UTF-8 text of the message, 0-4096 characters.
 	Entities              *[]MessageEntity `json:"entities"`                // Optional. For text messages, special entities like usernames, URLs, bot commands, etc. that appear in the text
 	Audio                 *Audio           `json:"audio"`                   // Optional. Message is an audio file, information about the file
 	Document              *Document        `json:"document"`                // Optional. Message is a general file, information about the file
+	Game                  *Game            `json:"game"`                    // optional
 	Photo                 *[]PhotoSize     `json:"photo"`                   // Optional. Message is a photo, available sizes of the photo
 	Sticker               *Sticker         `json:"sticker"`                 // Optional. Message is a sticker, information about the sticker
 	Video                 *Video           `json:"video"`                   // Optional. Message is a video, information about the video
@@ -127,11 +158,11 @@ type Message struct {
 	SuperGroupChatCreated bool             `json:"supergroup_chat_created"` // Optional. Service message: the supergroup has been created
 	ChannelChatCreated    bool             `json:"channel_chat_created"`    // Optional. Service message: the channel has been created
 	MigrateToChatID       int64            `json:"migrate_to_chat_id"`      // Optional. The group has been migrated to a supergroup with the specified
-										// 	identifier, not exceeding 1e13 by absolute value
-	MigrateFromChatID     int64            `json:"migrate_from_chat_id"`    // Optional. The supergroup has been migrated from a group with the specified
-										// 	identifier, not exceeding 1e13 by absolute value
-	PinnedMessage         *Message         `json:"pinned_message"`          // Optional. Specified message was pinned. Note that the Message object in this
-										// 	field will not contain further reply_to_message fields even if it is itself a reply.
+	// 	identifier, not exceeding 1e13 by absolute value
+	MigrateFromChatID int64 `json:"migrate_from_chat_id"` // Optional. The supergroup has been migrated from a group with the specified
+	// 	identifier, not exceeding 1e13 by absolute value
+	PinnedMessage *Message `json:"pinned_message"` // Optional. Specified message was pinned. Note that the Message object in this
+	// 	field will not contain further reply_to_message fields even if it is itself a reply.
 }
 
 // Time converts the message timestamp into a Time.
@@ -180,11 +211,12 @@ func (m *Message) CommandArguments() string {
 
 // This object represents one special entity in a text message. For example, hashtags, usernames, URLs, etc.
 type MessageEntity struct {
-	Type   string `json:"type"`   //Type of the entity. One of mention (@username), hashtag, bot_command, url, email, bold (bold text),
-				      //	italic (italic text), code (monowidth string), pre (monowidth block), text_link (for clickable text URLs)
+	Type string `json:"type"` //Type of the entity. One of mention (@username), hashtag, bot_command, url, email, bold (bold text),
+	//	italic (italic text), code (monowidth string), pre (monowidth block), text_link (for clickable text URLs)
 	Offset int    `json:"offset"` // Offset in UTF-16 code units to the start of the entity
 	Length int    `json:"length"` // Length of the entity in UTF-16 code units
 	URL    string `json:"url"`    // Optional. For “text_link” only, url that will be opened after user taps on the text
+	User   *User  `json:"user"`   // optional
 }
 
 // ParseURL attempts to parse a URL contained within a MessageEntity.
@@ -229,6 +261,7 @@ type Sticker struct {
 	Width     int        `json:"width"`     // Sticker width
 	Height    int        `json:"height"`    // Sticker height
 	Thumbnail *PhotoSize `json:"thumb"`     // Optional. Sticker thumbnail in .webp or .jpg format
+	Emoji     string     `json:"emoji"`     // optional
 	FileSize  int        `json:"file_size"` // Optional. File size
 }
 
@@ -299,18 +332,18 @@ func (f *File) Link(token string) string {
 
 // This object represents a custom keyboard with reply options.
 type ReplyKeyboardMarkup struct {
-	Keyboard        [][]KeyboardButton `json:"keyboard"`          // Array of button rows, each represented by an Array of KeyboardButton objects
-	ResizeKeyboard  bool               `json:"resize_keyboard"`   // Optional. Requests clients to resize the keyboard vertically for optimal fit
-								      // 	(e.g., make the keyboard smaller if there are just two rows of buttons).
-								      // 	Defaults to false, in which case the custom keyboard is always of the same height as the app's
-								      // 	standard keyboard.
-	OneTimeKeyboard bool               `json:"one_time_keyboard"` // Optional. Requests clients to hide the keyboard as soon as it's been used.
-								      // 	The keyboard will still be available, but clients will automatically
-								      // 	display the usual letter-keyboard in the chat – the user can press a special
-								      // 	button in the input field to see the custom keyboard again. Defaults to false.
-	Selective       bool               `json:"selective"`         // Optional. Use this parameter if you want to show the keyboard to specific users only.
-								      // 	Targets: 1) users that are @mentioned in the text of the Message object;
-								      // 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
+	Keyboard       [][]KeyboardButton `json:"keyboard"`        // Array of button rows, each represented by an Array of KeyboardButton objects
+	ResizeKeyboard bool               `json:"resize_keyboard"` // Optional. Requests clients to resize the keyboard vertically for optimal fit
+	// 	(e.g., make the keyboard smaller if there are just two rows of buttons).
+	// 	Defaults to false, in which case the custom keyboard is always of the same height as the app's
+	// 	standard keyboard.
+	OneTimeKeyboard bool `json:"one_time_keyboard"` // Optional. Requests clients to hide the keyboard as soon as it's been used.
+	// 	The keyboard will still be available, but clients will automatically
+	// 	display the usual letter-keyboard in the chat – the user can press a special
+	// 	button in the input field to see the custom keyboard again. Defaults to false.
+	Selective bool `json:"selective"` // Optional. Use this parameter if you want to show the keyboard to specific users only.
+	// 	Targets: 1) users that are @mentioned in the text of the Message object;
+	// 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
 }
 
 // This object represents one button of the reply keyboard.
@@ -329,59 +362,123 @@ type KeyboardButton struct {
 type ReplyKeyboardHide struct {
 	HideKeyboard bool `json:"hide_keyboard"` // Requests clients to hide the custom keyboard
 	Selective    bool `json:"selective"`     // Optional. Use this parameter if you want to hide keyboard for specific users only.
-						 // 	Targets: 1) users that are @mentioned in the text of the Message object;
-						 // 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
+	// 	Targets: 1) users that are @mentioned in the text of the Message object;
+	// 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
 }
 
-// This object represents an inline keyboard that appears right next to the message it belongs to.
+// ReplyKeyboardRemove allows the Bot to hide a custom keyboard.
+type ReplyKeyboardRemove struct {
+	RemoveKeyboard bool `json:"remove_keyboard"`
+	Selective      bool `json:"selective"`
+}
+
+// InlineKeyboardMarkup is a custom keyboard presented for an inline bot.
 type InlineKeyboardMarkup struct {
 	InlineKeyboard [][]InlineKeyboardButton `json:"inline_keyboard"` // Array of button rows, each represented by an Array of InlineKeyboardButton objects
 }
 
-// This object represents one button of an inline keyboard. You must use exactly one of the optional fields.
+// InlineKeyboardButton is a button within a custom keyboard for
+// inline query responses.
+//
+// Note that some values are references as even an empty string
+// will change behavior.
+//
+// CallbackGame, if set, MUST be first button in first row.
 type InlineKeyboardButton struct {
-	Text              string  `json:"text"`                          // Label text on the button
-	URL               *string `json:"url,omitempty"`                 // Optional. HTTP url to be opened when button is pressed
-	CallbackData      *string `json:"callback_data,omitempty"`       // Optional. Data to be sent in a callback query to the bot when button is pressed, 1-64 bytes
-	SwitchInlineQuery *string `json:"switch_inline_query,omitempty"` // Optional. If set, pressing the button will prompt the user to select one of their chats,
-									 // 	open that chat and insert the bot‘s username and the specified inline query in the input field.
-									 // 	Can be empty, in which case just the bot’s username will be inserted.
+	Text                         string        `json:"text"`
+	URL                          *string       `json:"url,omitempty"`                              // optional
+	CallbackData                 *string       `json:"callback_data,omitempty"`                    // optional
+	SwitchInlineQuery            *string       `json:"switch_inline_query,omitempty"`              // optional
+	SwitchInlineQueryCurrentChat *string       `json:"switch_inline_query_current_chat,omitempty"` // optional
+	CallbackGame                 *CallbackGame `json:"callback_game,omitempty"`                    // optional
 }
 
-// This object represents an incoming callback query from a callback button in an inline keyboard.
-// If the button that originated the query was attached to a message sent by the bot,
-// the field message will be presented.
-// If the button was attached to a message sent via the bot (in inline mode),
-// the field inline_message_id will be presented.
+// CallbackQuery is data sent when a keyboard button with callback data
+// is clicked.
 type CallbackQuery struct {
-	ID              string   `json:"id"`                // Unique identifier for this query
-	From            *User    `json:"from"`              // Sender
-	Message         *Message `json:"message"`           // Optional. Message with the callback button that originated the query.
-							    // 		Note that message content and message date will not be available if the message is too old
-	InlineMessageID string   `json:"inline_message_id"` // Optional. Identifier of the message sent via the bot in inline mode, that originated the query
-	Data            string   `json:"data"`              // Data associated with the callback button. Be aware that a bad client can send arbitrary data in this field
+	ID              string   `json:"id"`
+	From            *User    `json:"from"`
+	Message         *Message `json:"message"`           // optional
+	InlineMessageID string   `json:"inline_message_id"` // optional
+	ChatInstance    string   `json:"chat_instance"`
+	Data            string   `json:"data"`            // optional
+	GameShortName   string   `json:"game_short_name"` // optional
 }
 
-// Upon receiving a message with this object,
-// Telegram clients will display a reply interface to the user
-// (act as if the user has selected the bot‘s message and tapped ’Reply').
-// This can be extremely useful if you want to create user-friendly step-by-step
-// interfaces without having to sacrifice privacy mode.
+// ForceReply allows the Bot to have users directly reply to it without
+// additional interaction.
 type ForceReply struct {
 	ForceReply bool `json:"force_reply"` // Shows reply interface to the user, as if they manually selected the bot‘s message and tapped ’Reply'
 	Selective  bool `json:"selective"`   // Optional. Use this parameter if you want to force reply from specific users only.
-					     // 	Targets: 1) users that are @mentioned in the text of the Message object;
-					     // 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
+	// 	Targets: 1) users that are @mentioned in the text of the Message object;
+	// 	2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.
 }
 
-// Inline mode
-// The following methods and objects allow your bot to work in inline mode.
-// Please see our Introduction to Inline bots for more details.
-// To enable this option, send the /setinline command to @BotFather and provide the placeholder text
-// that the user will see in the input field after typing your bot’s name.
+// ChatMember is information about a member in a chat.
+type ChatMember struct {
+	User   *User  `json:"user"`
+	Status string `json:"status"`
+}
 
-// This object represents an incoming inline query.
-// When the user sends an empty query, your bot could return some default or trending results.
+// IsCreator returns if the ChatMember was the creator of the chat.
+func (chat ChatMember) IsCreator() bool { return chat.Status == "creator" }
+
+// IsAdministrator returns if the ChatMember is a chat administrator.
+func (chat ChatMember) IsAdministrator() bool { return chat.Status == "administrator" }
+
+// IsMember returns if the ChatMember is a current member of the chat.
+func (chat ChatMember) IsMember() bool { return chat.Status == "member" }
+
+// HasLeft returns if the ChatMember left the chat.
+func (chat ChatMember) HasLeft() bool { return chat.Status == "left" }
+
+// WasKicked returns if the ChatMember was kicked from the chat.
+func (chat ChatMember) WasKicked() bool { return chat.Status == "kicked" }
+
+// Game is a game within Telegram.
+type Game struct {
+	Title        string          `json:"title"`
+	Description  string          `json:"description"`
+	Photo        []PhotoSize     `json:"photo"`
+	Text         string          `json:"text"`
+	TextEntities []MessageEntity `json:"text_entities"`
+	Animation    Animation       `json:"animation"`
+}
+
+// Animation is a GIF animation demonstrating the game.
+type Animation struct {
+	FileID   string    `json:"file_id"`
+	Thumb    PhotoSize `json:"thumb"`
+	FileName string    `json:"file_name"`
+	MimeType string    `json:"mime_type"`
+	FileSize int       `json:"file_size"`
+}
+
+// GameHighScore is a user's score and position on the leaderboard.
+type GameHighScore struct {
+	Position int  `json:"position"`
+	User     User `json:"user"`
+	Score    int  `json:"score"`
+}
+
+// CallbackGame is for starting a game in an inline keyboard button.
+type CallbackGame struct{}
+
+// WebhookInfo is information about a currently set webhook.
+type WebhookInfo struct {
+	URL                  string `json:"url"`
+	HasCustomCertificate bool   `json:"has_custom_certificate"`
+	PendingUpdateCount   int    `json:"pending_update_count"`
+	LastErrorDate        int    `json:"last_error_date"`    // optional
+	LastErrorMessage     string `json:"last_error_message"` // optional
+}
+
+// IsSet returns true if a webhook is currently set.
+func (info WebhookInfo) IsSet() bool {
+	return info.URL != ""
+}
+
+// InlineQuery is a Query from Telegram for an inline request.
 type InlineQuery struct {
 	ID       string    `json:"id"`       // Unique identifier for this query
 	From     *User     `json:"from"`     // Sender
@@ -475,33 +572,30 @@ type InlineQueryResultVideo struct {
 // Represents a link to an mp3 audio file. By default, this audio file will be sent by the user.
 // Alternatively, you can use input_message_content to send a message with the specified content instead of the audio.
 type InlineQueryResultAudio struct {
-	Type                string                `json:"type"`                            // Type of the result, must be audio
-	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 bytes
-	URL                 string                `json:"audio_url"`                       // A valid URL for the audio file
-	Title               string                `json:"title"`                           // Title
-	Performer           string                `json:"performer"`                       // Optional. Performer
-	Duration            int                   `json:"audio_duration"`                  // Optional. Audio duration in seconds
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the audio
+	Type                string                `json:"type"`      // required
+	ID                  string                `json:"id"`        // required
+	URL                 string                `json:"audio_url"` // required
+	Title               string                `json:"title"`     // required
+	Caption             string                `json:"caption"`
+	Performer           string                `json:"performer"`
+	Duration            int                   `json:"audio_duration"`
+	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
+	InputMessageContent interface{}           `json:"input_message_content,omitempty"`
 }
 
-// Represents a link to a voice recording in an .ogg container encoded with OPUS.
-// By default, this voice recording will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content
-// instead of the the voice message.
+// InlineQueryResultVoice is an inline query response voice.
 type InlineQueryResultVoice struct {
-	Type                string                `json:"type"`                            // Type of the result, must be voice
-	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 bytes
-	URL                 string                `json:"voice_url"`                       // A valid URL for the voice recording
-	Title               string                `json:"title"`                           // Recording title
-	Duration            int                   `json:"voice_duration"`                  // Optional. Recording duration in seconds
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the voice recording
+	Type                string                `json:"type"`      // required
+	ID                  string                `json:"id"`        // required
+	URL                 string                `json:"voice_url"` // required
+	Title               string                `json:"title"`     // required
+	Caption             string                `json:"caption"`
+	Duration            int                   `json:"voice_duration"`
+	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
+	InputMessageContent interface{}           `json:"input_message_content,omitempty"`
 }
 
-// Represents a link to a file. By default, this file will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with the specified content
-// instead of the file. Currently, only .PDF and .ZIP files can be sent using this method.
+// InlineQueryResultDocument is an inline query response document.
 type InlineQueryResultDocument struct {
 	Type                string                `json:"type"`                            // Type of the result, must be document
 	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 bytes
@@ -520,154 +614,37 @@ type InlineQueryResultDocument struct {
 // Represents a location on a map. By default, the location will be sent by the user.
 // Alternatively, you can use input_message_content to send a message with the specified content instead of the location.
 type InlineQueryResultLocation struct {
-	Type                string                `json:"type"`                            // Type of the result, must be location
-	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 Bytes
-	Latitude            float64               `json:"latitude"`                        // Location latitude in degrees
-	Longitude           float64               `json:"longitude"`                       // Location longitude in degrees
-	Title               string                `json:"title"`                           // Location title
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the location
-	ThumbURL            string                `json:"thumb_url"`                       // Optional. Url of the thumbnail for the result
-	ThumbWidth          int                   `json:"thumb_width"`                     // Optional. Thumbnail width
-	ThumbHeight         int                   `json:"thumb_height"`                    // Optional. Thumbnail height
+	Type                string                `json:"type"`      // required
+	ID                  string                `json:"id"`        // required
+	Latitude            float64               `json:"latitude"`  // required
+	Longitude           float64               `json:"longitude"` // required
+	Title               string                `json:"title"`     // required
+	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
+	InputMessageContent interface{}           `json:"input_message_content,omitempty"`
+	ThumbURL            string                `json:"thumb_url"`
+	ThumbWidth          int                   `json:"thumb_width"`
+	ThumbHeight         int                   `json:"thumb_height"`
 }
 
-// Represents a venue. By default, the venue will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the venue.
-type InlineQueryResultVenue struct {
-	Type                string                `json:"type"`                            // Type of the result, must be venue
-	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 Bytes
-	Latitude            float64               `json:"latitude"`                        // Latitude of the venue location in degrees
-	Longitude           float64               `json:"longitude"`                       // Longitude of the venue location in degrees
-	Title               string                `json:"title"`                           //  	Title of the venue
-	Address             string                `json:"address"`                         // Address of the venue
-	FoursquareId        string                `json:"foursquare_id"`                   // Optional. Foursquare identifier of the venue if known
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the venue
-	ThumbURL            string                `json:"thumb_url"`                       // Optional. Url of the thumbnail for the result
-	ThumbWidth          int                   `json:"thumb_width"`                     // Optional. Thumbnail width
-	ThumbHeight         int                   `json:"thumb_height"`                    // Optional. Thumbnail height
+// InlineQueryResultGame is an inline query response game.
+type InlineQueryResultGame struct {
+	Type          string                `json:"type"`
+	ID            string                `json:"id"`
+	GameShortName string                `json:"game_short_name"`
+	ReplyMarkup   *InlineKeyboardMarkup `json:"reply_markup"`
 }
 
-// Represents a contact with a phone number. By default, this contact will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the contact.
-type InlineQueryResultContact struct {
-	Type                string                `json:"type"`                            // Type of the result, must be contact
-	ID                  string                `json:"id"`                              // Unique identifier for this result, 1-64 Bytes
-	PhoneNumber         float64               `json:"phone_number"`                    // Contact's phone number
-	FirstName           string                `json:"first_name"`                      // Contact's first name
-	LastName            string                `json:"last_name"`                       // Optional. Contact's last name
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the contact
-	ThumbURL            string                `json:"thumb_url"`                       // Optional. Url of the thumbnail for the result
-	ThumbWidth          int                   `json:"thumb_width"`                     // Optional. Thumbnail width
-	ThumbHeight         int                   `json:"thumb_height"`                    // Optional. Thumbnail height
+// ChosenInlineResult is an inline query result chosen by a User
+type ChosenInlineResult struct {
+	ResultID        string    `json:"result_id"`
+	From            *User     `json:"from"`
+	Location        *Location `json:"location"`
+	InlineMessageID string    `json:"inline_message_id"`
+	Query           string    `json:"query"`
 }
 
-// Represents a link to a photo stored on the Telegram servers.
-// By default, this photo will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the photo.
-type InlineQueryResultCachedPhoto struct {
-	Type                string `json:"type"`                                           // Type of the result, must be photo
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	PhotoFileId         string `json:"photo_file_id"`                                  // A valid file identifier of the photo
-	Title               string `json:"title"`                                          // Optional. Title for the result
-	Description         string `json:"description"`                                    // Optional. Short description of the result
-	Caption             string `json:"caption"`                                        // Optional. Caption of the photo to be sent, 0-200 characters
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the photo
-}
-
-// Represents a link to an animated GIF file stored on the Telegram servers.
-// By default, this animated GIF file will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with specified content instead of the animation.
-type InlineQueryResultCachedGif struct {
-	Type                string `json:"type"`                                           // Type of the result, must be gif
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	GifFileId           string `json:"gif_file_id"`                                    // A valid file identifier for the GIF file
-	Title               string `json:"title"`                                          // Optional. Title for the result
-	Caption             string `json:"caption"`                                        // Optional. Caption of the GIF file to be sent, 0-200 characters
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the GIF animation
-}
-
-// Represents a link to a video animation (H.264/MPEG-4 AVC video without sound) stored on the Telegram servers.
-// By default, this animated MPEG-4 file will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the animation.
-type InlineQueryResultCachedMpeg4Gif struct {
-	Type                string `json:"type"`                                           // Type of the result, must be mpeg4_gif
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	Mpeg4FileId         string `json:"mpeg4_file_id"`                                  // A valid file identifier for the MP4 file
-	Title               string `json:"title"`                                          // Optional. Title for the result
-	Caption             string `json:"caption"`                                        // Optional. Caption of the MPEG-4 file to be sent, 0-200 characters
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the video animation
-}
-
-// Represents a link to a sticker stored on the Telegram servers.
-// By default, this sticker will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the sticker.
-type InlineQueryResultCachedSticker struct {
-	Type                string `json:"type"`                                           // Type of the result, must be sticker
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	StickerFileId       string `json:"sticker_file_id"`                                // A valid file identifier of the sticker
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the sticker
-}
-
-// Represents a link to a file stored on the Telegram servers.
-// By default, this file will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the file.
-// Currently, only pdf-files and zip archives can be sent using this method.
-type InlineQueryResultCachedDocument  struct {
-	Type                string `json:"type"`                                           // Type of the result, must be document
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	Title               string `json:"title"`                                          // Title for the result
-	DocumentFileId      string `json:"document_file_id"`                               // A valid file identifier for the file
-	Description         string `json:"description"`                                    // Optional. Short description of the result
-	Caption             string        `json:"caption"`                                 // Optional. Caption of the document to be sent, 0-200 characters
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the file
-}
-
-// Represents a link to a video file stored on the Telegram servers.
-// By default, this video file will be sent by the user with an optional caption.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the video.
-type InlineQueryResultCachedVideo struct {
-	Type                string `json:"type"`                                           // Type of the result, must be video
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	VideoFileId         string `json:"video_file_id"`                                  // A valid file identifier for the video file
-	Title               string `json:"title"`                                          // Title for the result
-	Description         string `json:"description"`                                    // Optional. Short description of the result
-	Caption             string        `json:"caption"`                                 // Optional. Caption of the video to be sent, 0-200 characters
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the video
-}
-
-// Represents a link to a voice message stored on the Telegram servers.
-// By default, this voice message will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the voice message.
-type InlineQueryResultCachedVoice struct {
-	Type                string `json:"type"`                                           // Type of the result, must be voice
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	VoiceFileId         string `json:"voice_file_id"`                                  // A valid file identifier for the voice message
-	Title               string `json:"title"`                                          // Voice message title
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the voice message
-}
-
-// Represents a link to an mp3 audio file stored on the Telegram servers.
-// By default, this audio file will be sent by the user.
-// Alternatively, you can use input_message_content to send a message with the specified content instead of the audio.
-type InlineQueryResultCachedAudio struct {
-	Type                string `json:"type"`                                           // Type of the result, must be audio
-	ID                  string `json:"id"`                                             // Unique identifier for this result, 1-64 bytes
-	AudioFileId         string `json:"audio_file_id"`                                  // A valid file identifier for the audio file
-	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`          // Optional. An Inline keyboard attached to the message
-	InputMessageContent interface{}           `json:"input_message_content,omitempty"` // Optional. Content of the message to be sent instead of the audio
-}
-
-// Represents the content of a text message to be sent as the result of an inline query.
+// InputTextMessageContent contains text for displaying
+// as an inline query result.
 type InputTextMessageContent struct {
 	Text                  string `json:"message_text"`             // Text of the message to be sent, 1-4096 characters
 	ParseMode             string `json:"parse_mode"`               // Optional. Send Markdown or HTML, if you want Telegram apps to show bold, italic, fixed-width text or inline URLs in your bot's message.
