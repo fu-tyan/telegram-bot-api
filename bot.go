@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/technoweenie/multipartstreamer"
+	"github.com/fu-tyan/multipartstreamer"
 	"io/ioutil"
 	"log"
 	"net/http"
